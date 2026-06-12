@@ -21,7 +21,7 @@ celery_app.conf.update(
     timezone="Asia/Shanghai",
     enable_utc=True,
     task_always_eager=settings.APP_ENV == "development",
-    imports=["app.tasks.cookie_checker"],
+    imports=["app.tasks.cookie_checker", "app.tasks.provision"],
 )
 
 # Beat schedule — cookie verification daily at 2 AM

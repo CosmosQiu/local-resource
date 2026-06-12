@@ -67,11 +67,21 @@ export const accountsApi = {
 };
 
 // --------------- Dashboard API ---------------
+export interface HostMetrics {
+  host_id: number;
+  host_name: string;
+  host_ip: string;
+  cpu_percent: number;
+  memory_percent: number;
+  disk_percent: number;
+  status: string;
+}
+
 export interface DashboardSummary {
   total_accounts: number;
   expiring_accounts: number;
-  total_gpu_cards: number;
-  avg_gpu_utilization: number;
+  total_hosts: number;
+  hosts: HostMetrics[];
   recent_requests: Array<{
     time: string;
     user: string;
@@ -86,26 +96,13 @@ export const dashboardApi = {
 };
 
 // --------------- Compute API ---------------
-export interface GPUInfo {
-  id: number;
-  resource_id: number;
-  gpu_index: number;
-  gpu_name: string | null;
-  gpu_uuid: string | null;
-  total_memory_mb: number;
-  used_memory_mb: number;
-  utilization_pct: number;
-  temperature_c: number | null;
-  power_draw_w: number | null;
-  recorded_at: string;
-}
-
 export interface ComputeResource {
   id: number;
   name: string;
   resource_type: string;
   host_ip: string | null;
   management_port: number;
+  ssh_username: string | null;
   total_cpu_cores: number;
   total_memory_gb: number;
   total_disk_gb: number;
@@ -114,12 +111,23 @@ export interface ComputeResource {
   available_disk_gb: number;
   status: string;
   ansible_group: string | null;
-  gpustack_worker_id: string | null;
+  init_command: string | null;
+  init_status: string;
+  grafana_url: string | null;
   last_heartbeat: string | null;
   notes: string | null;
-  gpus: GPUInfo[];
+  gpus: any[];
   created_at: string;
   updated_at: string;
+}
+
+export interface InitCommandResponse {
+  resource_id: number;
+  resource_name: string;
+  host_ip: string;
+  init_command: string | null;
+  init_status: string;
+  grafana_url: string | null;
 }
 
 export const computeApi = {
@@ -129,6 +137,7 @@ export const computeApi = {
   get: (id: number) => client.get(`/compute/${id}`),
   update: (id: number, data: any) => client.put(`/compute/${id}`, data),
   delete: (id: number) => client.delete(`/compute/${id}`),
+  getInitCommand: (id: number) => client.get(`/compute/${id}/init-command`),
 };
 
 // --------------- Requests API ---------------
@@ -163,6 +172,7 @@ export const requestsApi = {
   approve: (id: number, approved: boolean) =>
     client.post(`/compute/requests/${id}/approve`, { approved }),
   stop: (id: number) => client.post(`/compute/requests/${id}/stop`),
+  getCredential: (id: number) => client.get(`/compute/requests/${id}/credential`),
 };
 
 // --------------- Admin API ---------------

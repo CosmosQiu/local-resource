@@ -57,9 +57,23 @@ class ComputeResource(Base):
         JSON, nullable=True, comment="Extra Ansible host vars"
     )
 
-    # Integration — GPUStack (optional, for GPUStack-managed clusters)
-    gpustack_worker_id: Mapped[str | None] = mapped_column(
-        String(128), nullable=True, index=True, comment="GPUStack worker UUID"
+    # SSH credentials (encrypted at rest via Fernet)
+    ssh_username: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, comment="SSH login username for target host"
+    )
+    ssh_password: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="SSH password — encrypted at rest"
+    )
+
+    # Monitoring bootstrap
+    init_command: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="Shell command to install node_exporter on the target"
+    )
+    init_status: Mapped[str] = mapped_column(
+        String(16), default="pending", nullable=False, comment="pending, running, done, failed"
+    )
+    grafana_url: Mapped[str | None] = mapped_column(
+        String(512), nullable=True, comment="Grafana dashboard URL for this host"
     )
 
     # Health

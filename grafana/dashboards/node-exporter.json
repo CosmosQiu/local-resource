@@ -1,0 +1,58 @@
+{
+  "dashboard": {
+    "title": "Node Exporter — Host Metrics",
+    "uid": "node-exporter",
+    "tags": ["node_exporter", "arh"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "CPU Usage",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)",
+            "legendFormat": "{{instance}} — CPU %"
+          }
+        ],
+        "yaxes": [{"format": "percent", "min": 0, "max": 100}],
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 2,
+        "title": "Memory Usage",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100)",
+            "legendFormat": "{{instance}} — Memory %"
+          }
+        ],
+        "yaxes": [{"format": "percent", "min": 0, "max": 100}],
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 3,
+        "title": "Disk Usage",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "max by (instance) ((node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"} - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"}) / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"} * 100)",
+            "legendFormat": "{{instance}} — Disk %"
+          }
+        ],
+        "yaxes": [{"format": "percent", "min": 0, "max": 100}],
+        "lines": true,
+        "fill": 1
+      }
+    ],
+    "schemaVersion": 16,
+    "version": 1
+  }
+}

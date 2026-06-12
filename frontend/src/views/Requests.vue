@@ -2,7 +2,7 @@
   <div class="requests-page">
     <div class="toolbar">
       <el-select v-model="filterStatus" placeholder="状态筛选" clearable @change="fetchRequests" style="width:140px">
-        <el-option label="待审批" value="pending" /><el-option label="已通过" value="approved" />
+        <el-option label="待审批" value="pending" /><el-option label="配置中" value="provisioning" />
         <el-option label="运行中" value="running" /><el-option label="已拒绝" value="rejected" />
         <el-option label="已完成" value="completed" />
       </el-select>
@@ -20,16 +20,36 @@
       <el-table-column label="状态" width="100">
         <template #default="{row}"><el-tag :type="statusTag(row.status)">{{ statusLabel(row.status) }}</el-tag></template>
       </el-table-column>
-      <el-table-column prop="created_at" label="申请时间" width="160"><template #default="{row}">{{ fmt(row.created_at) }}</template></el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="连接信息" min-width="200">
         <template #default="{row}">
+          <template v-if="row.status==='running' && row.access_url">
+            <el-link type="primary" :underline="false" style="font-family:monospace;font-size:12px">
+              {{ row.access_url }}
+            </el-link>
+            <el-button link size="small" style="margin-left:4px" @click="copyText(row.access_url)">
+              <el-icon><CopyDocument /></el-icon>
+            </el-button>
+          </template>
+          <span v-else-if="row.status==='provisioning'" style="color:#e6a23c">
+            <el-icon class="is-loading"><Loading /></el-icon> 配置中...
+          </span>
+          <span v-else style="color:#909399">—</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="created_at" label="申请时间" width="160"><template #default="{row}">{{ fmt(row.created_at) }}</template></el-table-column>
+      <el-table-column label="操作" width="240" fixed="right">
+        <template #default="{row}">
+          <el-button v-if="row.status==='running'" link type="primary" size="small" @click="showCredential(row)">
+            <el-icon><Key /></el-icon> 查看凭证
+          </el-button>
           <el-button v-if="row.status==='pending' && auth.hasPermission('compute.approve')" link type="success" size="small" @click="approve(row,true)">通过</el-button>
           <el-button v-if="row.status==='pending' && auth.hasPermission('compute.approve')" link type="danger" size="small" @click="approve(row,false)">拒绝</el-button>
-          <el-button v-if="row.status==='running' && row.user_id===auth.user?.id" link type="danger" size="small" @click="stopRequest(row)">停止</el-button>
+          <el-button v-if="row.status==='running' && (row.user_id===auth.user?.id || auth.user?.is_superuser)" link type="danger" size="small" @click="stopRequest(row)">停止</el-button>
         </template>
       </el-table-column>
     </el-table>
 
+    <!-- Create Dialog -->
     <el-dialog v-model="dialogVisible" title="申请资源" width="500px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="类型" prop="request_type"><el-radio-group v-model="form.request_type"><el-radio value="container">容器</el-radio><el-radio value="bare_metal">裸金属</el-radio></el-radio-group></el-form-item>
@@ -41,6 +61,32 @@
         <el-form-item label="端口映射" v-if="form.request_type==='container'"><el-input v-model="form.exposed_ports_text" placeholder='如 {"8888/tcp":30080}' /></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" :loading="saving" @click="submitForm">提交申请</el-button></template>
+    </el-dialog>
+
+    <!-- Credential Dialog -->
+    <el-dialog v-model="credDialogVisible" title="连接凭证" width="500px" @close="clearCredPoll">
+      <div v-if="credLoading" style="text-align:center;padding:20px">
+        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+      </div>
+      <template v-else-if="credData">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="连接地址">
+            <code>{{ credData.access_url }}</code>
+            <el-button link size="small" style="margin-left:8px" @click="copyText(credData.access_url)">复制</el-button>
+          </el-descriptions-item>
+          <el-descriptions-item label="容器名称"><code>{{ credData.container_name }}</code></el-descriptions-item>
+          <el-descriptions-item label="访问密码">
+            <code v-if="credData.access_credential">{{ credData.access_credential }}</code>
+            <span v-else style="color:#909399">—</span>
+            <el-button v-if="credData.access_credential" link size="small" style="margin-left:8px" @click="copyText(credData.access_credential)">复制</el-button>
+          </el-descriptions-item>
+          <el-descriptions-item label="容器 ID"><code>{{ credData.container_id }}</code></el-descriptions-item>
+        </el-descriptions>
+        <div style="margin-top:12px;font-size:13px">
+          使用 <code>ssh root@{{ credData.access_url }}</code> 连接，密码为上方的访问密码。
+        </div>
+      </template>
+      <template #footer><el-button @click="credDialogVisible=false">关闭</el-button></template>
     </el-dialog>
   </div>
 </template>
@@ -63,6 +109,7 @@ async function fetchRequests() {
   finally { loading.value = false; }
 }
 
+// ---------- Create ----------
 const dialogVisible = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInstance>();
@@ -84,9 +131,29 @@ async function submitForm() {
   finally { saving.value = false; }
 }
 
+// ---------- Approve / Stop ----------
 async function approve(row: ContainerRequest, approved: boolean) {
-  try { await requestsApi.approve(row.id, approved); ElMessage.success(approved ? "已通过" : "已拒绝"); fetchRequests(); }
-  catch (e: any) { ElMessage.error(e.response?.data?.detail || "操作失败"); }
+  try {
+    await requestsApi.approve(row.id, approved);
+    ElMessage.success(approved ? "已通过，正在配置资源..." : "已拒绝");
+    fetchRequests();
+    // Poll for status change when provisioning
+    if (approved) startProvisionPoll(row.id);
+  } catch (e: any) { ElMessage.error(e.response?.data?.detail || "操作失败"); }
+}
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+function startProvisionPoll(id: number) {
+  pollTimer = setInterval(async () => {
+    try {
+      const { data } = await requestsApi.get(id);
+      if (data.status !== "provisioning") {
+        clearInterval(pollTimer!);
+        fetchRequests();
+        if (data.status === "running") ElMessage.success(`资源「${id}」已配置完成`);
+      }
+    } catch { /* ignore */ }
+  }, 3000);
 }
 
 async function stopRequest(row: ContainerRequest) {
@@ -94,8 +161,34 @@ async function stopRequest(row: ContainerRequest) {
   catch (e: any) { ElMessage.error(e.response?.data?.detail || "操作失败"); }
 }
 
-function statusTag(s: string) { const m: Record<string,string> = { pending:"warning", approved:"success", running:"", rejected:"danger", completed:"info" }; return m[s]||"info"; }
-function statusLabel(s: string) { const m: Record<string,string> = { pending:"待审批", approved:"已通过", running:"运行中", rejected:"已拒绝", completed:"已完成" }; return m[s]||s; }
+// ---------- Credential ----------
+const credDialogVisible = ref(false);
+const credLoading = ref(false);
+const credData = ref<any>(null);
+
+async function showCredential(row: ContainerRequest) {
+  credDialogVisible.value = true;
+  credLoading.value = true;
+  credData.value = null;
+  try {
+    const { data } = await requestsApi.getCredential(row.id);
+    credData.value = data;
+  } catch (e: any) { ElMessage.error(e.response?.data?.detail || "获取凭证失败"); }
+  finally { credLoading.value = false; }
+}
+
+function clearCredPoll() {
+  if (pollTimer) clearInterval(pollTimer);
+}
+
+// ---------- Helpers ----------
+async function copyText(text: string) {
+  try { await navigator.clipboard.writeText(text); ElMessage.success("已复制"); }
+  catch { ElMessage.warning("复制失败"); }
+}
+
+function statusTag(s: string) { const m: Record<string,string> = { pending:"warning", provisioning:"warning", approved:"success", running:"", rejected:"danger", completed:"info" }; return m[s]||"info"; }
+function statusLabel(s: string) { const m: Record<string,string> = { pending:"待审批", provisioning:"配置中", approved:"已通过", running:"运行中", rejected:"已拒绝", completed:"已完成" }; return m[s]||s; }
 function fmt(iso: string) { return iso ? new Date(iso).toLocaleString("zh-CN") : ""; }
 
 onMounted(fetchRequests);

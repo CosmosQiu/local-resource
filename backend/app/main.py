@@ -1,6 +1,9 @@
 """
 FastAPI application factory.
 """
+import logging
+import secrets
+import string
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,12 +11,69 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 
+logger = logging.getLogger("uvicorn")
+
+
+# ---------------------------------------------------------------------------
+# Default admin bootstrap
+# ---------------------------------------------------------------------------
+def _generate_admin_password(length: int = 16) -> str:
+    """Generate a secure random password for the default admin account."""
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+async def _bootstrap_admin() -> None:
+    """Create a default admin user (username=admin) if one does not exist.
+
+    The password is randomly generated and written to the application log.
+    The admin role (with all permissions) is assigned automatically.
+    """
+    from sqlalchemy import select
+
+    from app.core.database import async_session
+    from app.core.security import hash_password
+    from app.models.user import Role, User
+
+    async with async_session() as db:
+        result = await db.execute(select(User).where(User.username == "admin"))
+        if result.scalar_one_or_none() is not None:
+            return  # already exists — nothing to do
+
+        password = _generate_admin_password()
+
+        admin_user = User(
+            username="admin",
+            email="admin@localhost",
+            hashed_password=hash_password(password),
+            display_name="System Admin",
+            is_superuser=True,
+            is_active=True,
+        )
+
+        # Assign the seeded "admin" role
+        role_result = await db.execute(select(Role).where(Role.name == "admin"))
+        admin_role = role_result.scalar_one_or_none()
+        if admin_role:
+            admin_user.roles.append(admin_role)
+
+        db.add(admin_user)
+        await db.commit()
+
+        logger.warning("=" * 60)
+        logger.warning("  DEFAULT ADMIN ACCOUNT CREATED")
+        logger.warning("  Username : admin")
+        logger.warning("  Password : %s", password)
+        logger.warning("  ⚠  CHANGE THIS PASSWORD IMMEDIATELY!")
+        logger.warning("=" * 60)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     # Startup
     # TODO: init Redis pool, start background scheduler
+    await _bootstrap_admin()
     yield
     # Shutdown
     # TODO: close Redis pool, stop scheduler

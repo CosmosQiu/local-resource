@@ -62,11 +62,16 @@ class ContainerService:
         return req
 
     async def approve_request(self, request: ContainerRequest, approver_id: int) -> ContainerRequest:
-        request.status = "approved"
+        request.status = "provisioning"
         request.approved_by = approver_id
         request.approved_at = datetime.now(timezone.utc)
         request.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
         await self.db.flush()
+
+        # Trigger Pi agent to provision the container asynchronously
+        from app.tasks.provision import provision_container
+        provision_container.delay(request.id)
+
         return request
 
     async def reject_request(self, request: ContainerRequest, approver_id: int) -> ContainerRequest:

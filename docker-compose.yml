@@ -34,22 +34,53 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
-  # GPUStack — GPU cluster manager (optional)
-  # Uncomment when GPU worker nodes are available.
-  # GPUStack handles nvidia-smi collection, GPU inventory, and real-time metrics.
-  # Our platform pulls GPUStack's API for dashboard display.
-  # See: https://github.com/gpustack/gpustack
+  # Prometheus — scrapes node_exporter on managed hosts
   # ---------------------------------------------------------------------------
-  # gpustack:
-  #   image: gpustack/gpustack
-  #   container_name: arh-gpustack
-  #   restart: unless-stopped
-  #   ports:
-  #     - "${GPUSTACK_PORT:-8085}:80"
-  #   volumes:
-  #     - gpustack_data:/var/lib/gpustack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: arh-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Grafana — dashboard visualization for host metrics
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: arh-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-13000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
   redis_data:
-  # gpustack_data:
+  prometheus_data:
+  grafana_data:

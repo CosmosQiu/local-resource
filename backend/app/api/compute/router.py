@@ -78,6 +78,20 @@ async def update_resource(
     return ComputeResourceResponse.model_validate(r)
 
 
+@router.get("/{resource_id}/init-command")
+async def get_init_command(
+    resource_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _u: Annotated[User, Depends(PermissionChecker("compute.read"))],
+):
+    """Return the node_exporter initialization command for this resource."""
+    svc = ComputeService(db)
+    result = await svc.get_init_command(resource_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return result
+
+
 @router.delete("/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_resource(
     resource_id: int,

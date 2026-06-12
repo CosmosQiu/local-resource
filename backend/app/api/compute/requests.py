@@ -82,7 +82,7 @@ async def approve_request(
     req = await svc.get_request(request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
-    if req.status != "pending":
+    if req.status not in ("pending", "provisioning"):
         raise HTTPException(status_code=400, detail=f"Request is {req.status}")
 
     if body.approved:
@@ -91,6 +91,40 @@ async def approve_request(
         req = await svc.reject_request(req, current_user.id)
 
     return _to_response(req)
+
+
+@router.get("/requests/{request_id}/credential")
+async def get_request_credential(
+    request_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Return the decrypted access URL and credential for a running resource."""
+    svc = ContainerService(db)
+    req = await svc.get_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.status != "running":
+        raise HTTPException(status_code=400, detail=f"Resource is not running (status: {req.status})")
+    # Only owner or superuser/admin
+    if req.user_id != current_user.id and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    credential = None
+    if req.access_credential:
+        try:
+            from app.core.security import decrypt_secret
+            credential = decrypt_secret(req.access_credential)
+        except Exception:
+            pass
+
+    return {
+        "request_id": req.id,
+        "container_id": req.container_id,
+        "access_url": req.access_url,
+        "access_credential": credential,
+        "container_name": f"arh-{req.request_type}-{req.id}",
+    }
 
 
 @router.post("/requests/{request_id}/stop", response_model=ContainerRequestResponse)

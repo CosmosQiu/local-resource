@@ -43,20 +43,22 @@ class ComputeResourceCreate(BaseModel):
     name: str = Field(..., max_length=128)
     resource_type: str = Field(..., pattern=r"^(bare_metal|k8s_cluster|linux_host|windows_host)$")
     host_ip: str | None = None
+    ssh_username: str | None = None
+    ssh_password: str | None = None
     management_port: int = 22
     total_cpu_cores: int = 0
     total_memory_gb: float = 0.0
     total_disk_gb: float = 0.0
     ansible_group: str | None = None
     ansible_vars: dict | None = None
-    gpustack_worker_id: str | None = None
     notes: str | None = None
-    gpus: list[GPUCreate] = []
 
 
 class ComputeResourceUpdate(BaseModel):
     name: str | None = None
     host_ip: str | None = None
+    ssh_username: str | None = None
+    ssh_password: str | None = None
     management_port: int | None = None
     total_cpu_cores: int | None = None
     total_memory_gb: float | None = None
@@ -67,7 +69,6 @@ class ComputeResourceUpdate(BaseModel):
     status: str | None = Field(None, pattern=r"^(online|offline|maintenance)$")
     ansible_group: str | None = None
     ansible_vars: dict | None = None
-    gpustack_worker_id: str | None = None
     notes: str | None = None
 
 
@@ -77,6 +78,7 @@ class ComputeResourceResponse(BaseModel):
     resource_type: str
     host_ip: str | None
     management_port: int
+    ssh_username: str | None = None
     total_cpu_cores: int
     total_memory_gb: float
     total_disk_gb: float
@@ -85,7 +87,9 @@ class ComputeResourceResponse(BaseModel):
     available_disk_gb: float
     status: str
     ansible_group: str | None
-    gpustack_worker_id: str | None
+    init_command: str | None = None
+    init_status: str = "pending"
+    grafana_url: str | None = None
     last_heartbeat: datetime | None
     notes: str | None
     gpus: list[GPUResponse] = []

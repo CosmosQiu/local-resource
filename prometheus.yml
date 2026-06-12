@@ -1,0 +1,19 @@
+# =============================================================================
+# Prometheus configuration — scrapes node_exporter on managed hosts.
+# Targets are managed via the AI Resource Hub backend (file_sd_configs).
+# =============================================================================
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "node_exporter"
+    static_configs:
+      # Targets will be populated manually via the ARH admin UI.
+      # Config reload: POST /-/reload (or `kill -HUP <pid>`)
+      - targets: []
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: "(.*)"
+        replacement: "$1"

@@ -60,9 +60,13 @@ class Settings(BaseSettings):
     # -------------------- Vault Encryption --------------------
     VAULT_ENCRYPTION_KEY: str = "change-me-to-a-32-byte-hex-string"
 
-    # -------------------- GPUStack --------------------
-    GPUSTACK_API_URL: str = "http://localhost:8085"
-    GPUSTACK_API_KEY: str = ""
+    # -------------------- Monitoring (Prometheus + Grafana) --------------------
+    PROMETHEUS_URL: str = "http://localhost:9090"
+    GRAFANA_URL: str = "http://localhost:3000"
+
+    # -------------------- Pi Agent (container provisioning) --------------------
+    PI_COMMAND: str = "pi"
+    PI_TIMEOUT: int = 300  # seconds — provisioning may take a while
 
     # -------------------- Ansible --------------------
     ANSIBLE_INVENTORY_PATH: str = "./ansible/inventory"
