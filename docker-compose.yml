@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: arh-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-arh_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arh_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_resource_hub}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arh_admin} -d ${POSTGRES_DB:-ai_resource_hub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: arh-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # GPUStack — GPU cluster manager (optional)
+  # Uncomment when GPU worker nodes are available.
+  # GPUStack handles nvidia-smi collection, GPU inventory, and real-time metrics.
+  # Our platform pulls GPUStack's API for dashboard display.
+  # See: https://github.com/gpustack/gpustack
+  # ---------------------------------------------------------------------------
+  # gpustack:
+  #   image: gpustack/gpustack
+  #   container_name: arh-gpustack
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${GPUSTACK_PORT:-8085}:80"
+  #   volumes:
+  #     - gpustack_data:/var/lib/gpustack
+
+volumes:
+  postgres_data:
+  redis_data:
+  # gpustack_data:
