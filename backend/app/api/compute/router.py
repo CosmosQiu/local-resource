@@ -4,6 +4,7 @@ Compute resource API router.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import PermissionChecker, get_current_user
@@ -18,6 +19,23 @@ from app.schemas.compute import (
 from app.services.compute import ComputeService
 
 router = APIRouter(tags=["Compute Resources"])
+
+
+class DetectSpecsRequest(BaseModel):
+    host_ip: str
+    ssh_username: str
+    ssh_password: str
+
+
+@router.post("/detect-specs")
+async def detect_specs(
+    body: DetectSpecsRequest,
+    _u: Annotated[User, Depends(PermissionChecker("compute.manage"))],
+):
+    """Run hardware detection on a target host via SSH and return specs."""
+    from app.services.pi_agent import detect_hardware_specs
+    result = detect_hardware_specs(body.host_ip, body.ssh_username, body.ssh_password)
+    return result
 
 
 @router.get("/", response_model=ComputeResourceListResponse)

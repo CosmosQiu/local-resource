@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # -------------------- Pi Agent (container provisioning) --------------------
     PI_COMMAND: str = "pi"
     PI_TIMEOUT: int = 300  # seconds — provisioning may take a while
+    # DeepSeek API (OpenAI-compatible format for Pi's LLM backend)
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
+    DEEPSEEK_MODEL: str = "deepseek-chat"
 
     # -------------------- Ansible --------------------
     ANSIBLE_INVENTORY_PATH: str = "./ansible/inventory"

@@ -36,8 +36,42 @@
       </el-col>
     </el-row>
 
-    <!-- Real-time Resource Charts -->
-    <el-row :gutter="20" style="margin-top: 20px">
+    <!-- Grafana Embedded Panels (per host) -->
+    <el-row :gutter="20" style="margin-top: 20px" v-if="grafanaHosts.length">
+      <el-col :span="24">
+        <el-card shadow="hover">
+          <template #header>
+            <span style="font-weight:bold">
+              Grafana 实时监控
+              <el-tag size="small" type="success" style="margin-left:8px">{{ grafanaHosts.length }} 台主机</el-tag>
+            </span>
+          </template>
+          <div v-for="host in grafanaHosts" :key="host.host_id" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;margin-bottom:4px;gap:8px">
+              <strong>{{ host.host_name }}</strong>
+              <code style="font-size:12px;color:#909399">{{ host.host_ip }}</code>
+              <span style="font-size:12px;color:#67c23a">CPU {{ host.cpu_percent }}%</span>
+              <span style="font-size:12px;color:#409eff">MEM {{ host.memory_percent }}%</span>
+              <span style="font-size:12px;color:#e6a23c">DISK {{ host.disk_percent }}%</span>
+            </div>
+            <iframe
+              v-if="host.grafana_url"
+              :src="host.grafana_url + '&kiosk=tv&theme=light'"
+              width="100%"
+              height="300"
+              frameborder="0"
+              style="border-radius:4px;border:1px solid #ebeef5"
+            ></iframe>
+            <div v-else style="height:80px;display:flex;align-items:center;justify-content:center;color:#909399;border:1px dashed #dcdfe6;border-radius:4px">
+              该主机暂未配置 Grafana 面板
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- ECharts fallback (when no Grafana hosts) -->
+    <el-row :gutter="20" style="margin-top: 20px" v-if="!grafanaHosts.length && summary.hosts.length">
       <el-col :span="8">
         <el-card shadow="hover">
           <template #header><span style="font-weight:bold">CPU 使用率 (%)</span></template>
@@ -149,6 +183,7 @@ const summary = reactive<DashboardSummary>({
 const runningResources = ref<ContainerRequest[]>([]);
 
 const onlineHosts = computed(() => summary.hosts.filter(h => h.status === "online").length);
+const grafanaHosts = computed(() => summary.hosts.filter(h => h.status === "online"));
 
 // Historical data for real-time curves
 const MAX_HISTORY = 30;

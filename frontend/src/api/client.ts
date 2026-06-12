@@ -138,6 +138,8 @@ export const computeApi = {
   update: (id: number, data: any) => client.put(`/compute/${id}`, data),
   delete: (id: number) => client.delete(`/compute/${id}`),
   getInitCommand: (id: number) => client.get(`/compute/${id}/init-command`),
+  detectSpecs: (data: { host_ip: string; ssh_username: string; ssh_password: string }) =>
+    client.post("/compute/detect-specs", data),
 };
 
 // --------------- Requests API ---------------

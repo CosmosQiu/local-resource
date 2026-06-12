@@ -118,6 +118,7 @@ async def get_summary(
                 memory_percent=metrics["memory_percent"],
                 disk_percent=metrics["disk_percent"],
                 status=host.status or "offline",
+                grafana_url=host.grafana_url,
             ))
 
     # --- Recent requests ---

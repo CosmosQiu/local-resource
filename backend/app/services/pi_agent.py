@@ -37,7 +37,7 @@ def _build_prompt(params: dict) -> str:
     )
 
 
-def _call_pi_agent(prompt: str) -> str:
+def _call_pi_agent(prompt: str, skill_name: str | None = None) -> str:
     """Spawn `pi -p` in print mode with the provision skill. Returns stdout."""
     pi_cmd = settings.PI_COMMAND
     skill_path = str(SKILL_PATH)
@@ -50,6 +50,13 @@ def _call_pi_agent(prompt: str) -> str:
         "--approve",
     ]
 
+    # Configure DeepSeek as the LLM backend (OpenAI-compatible)
+    env = os.environ.copy()
+    if settings.DEEPSEEK_API_KEY:
+        env["OPENAI_API_KEY"] = settings.DEEPSEEK_API_KEY
+        env["OPENAI_BASE_URL"] = settings.DEEPSEEK_BASE_URL
+        cmd.extend(["--provider", "openai", "--model", settings.DEEPSEEK_MODEL])
+
     logger.info("Spawning Pi agent: %s", " ".join(cmd))
     result = subprocess.run(
         cmd,
@@ -57,6 +64,7 @@ def _call_pi_agent(prompt: str) -> str:
         text=True,
         timeout=settings.PI_TIMEOUT,
         cwd=str(PROJECT_ROOT),
+        env=env,
     )
 
     if result.returncode != 0:
@@ -132,6 +140,41 @@ def execute_provision(params: dict) -> dict:
 
     # Parse JSON from output
     return _parse_output(output)
+
+
+DETECT_SCRIPT = SKILL_PATH / "scripts" / "detect_specs.sh"
+
+
+def detect_hardware_specs(host_ip: str, ssh_username: str, ssh_password: str) -> dict:
+    """
+    Detect hardware specs on a target host via SSH.
+
+    Runs the detect_specs.sh fallback script directly (Pi agent not needed
+    for simple hardware detection). Returns parsed JSON.
+    """
+    script = str(DETECT_SCRIPT)
+    env = {
+        **os.environ,
+        "HOST": host_ip,
+        "SSH_USER": ssh_username,
+        "SSH_PASSWORD": ssh_password,
+    }
+
+    logger.info("Detecting hardware on %s@%s", ssh_username, host_ip)
+    result = subprocess.run(
+        ["bash", script],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+        cwd=str(SKILL_PATH.parent),
+    )
+
+    if result.returncode != 0:
+        logger.error("Detect script exit code %d: %s", result.returncode, result.stderr)
+        return {"status": "error", "error": f"Detection failed: {result.stderr.strip()}"}
+
+    return _parse_output(result.stdout)
 
 
 def _parse_output(raw: str) -> dict:

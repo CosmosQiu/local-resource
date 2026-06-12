@@ -13,6 +13,7 @@ class HostMetrics(BaseModel):
     memory_percent: float = 0.0  # 0-100
     disk_percent: float = 0.0    # 0-100
     status: str = "offline"
+    grafana_url: str | None = None  # Grafana dashboard iframe URL for this host
 
 
 class DashboardSummary(BaseModel):

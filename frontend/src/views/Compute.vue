@@ -70,6 +70,12 @@
         <el-form-item label="IP 地址"><el-input v-model="form.host_ip" placeholder="例如 192.168.1.100" /></el-form-item>
         <el-form-item label="SSH 用户名"><el-input v-model="form.ssh_username" placeholder="root" /></el-form-item>
         <el-form-item label="SSH 密码"><el-input v-model="form.ssh_password" type="password" placeholder="目标主机 SSH 密码" show-password /></el-form-item>
+        <el-form-item label=" ">
+          <el-button type="success" :loading="detecting" @click="autoDetect" :disabled="!form.host_ip || !form.ssh_username || !form.ssh_password">
+            <el-icon><Search /></el-icon> 自动检测硬件配置
+          </el-button>
+          <span v-if="detectMsg" style="margin-left:8px;font-size:12px;color:#67c23a">{{ detectMsg }}</span>
+        </el-form-item>
         <el-form-item label="CPU 核数"><el-input-number v-model="form.total_cpu_cores" :min="0" /></el-form-item>
         <el-form-item label="内存(GB)"><el-input-number v-model="form.total_memory_gb" :min="0" :step="0.5" /></el-form-item>
         <el-form-item label="磁盘(GB)"><el-input-number v-model="form.total_disk_gb" :min="0" /></el-form-item>
@@ -133,6 +139,8 @@ async function fetchResources() {
 const dialogVisible = ref(false);
 const editingId = ref<number | null>(null);
 const saving = ref(false);
+const detecting = ref(false);
+const detectMsg = ref("");
 const formRef = ref<FormInstance>();
 const form = reactive({
   name: "", resource_type: "", host_ip: "",
@@ -147,6 +155,7 @@ const rules: FormRules = {
 
 function resetForm() {
   editingId.value = null;
+  detectMsg.value = "";
   Object.assign(form, { name: "", resource_type: "", host_ip: "", ssh_username: "", ssh_password: "", total_cpu_cores: 0, total_memory_gb: 0, total_disk_gb: 0, notes: "" });
   formRef.value?.resetFields();
 }
@@ -163,6 +172,34 @@ function openEdit(row: ComputeResource) {
   form.total_disk_gb = row.total_disk_gb;
   form.notes = row.notes || "";
   dialogVisible.value = true;
+}
+
+async function autoDetect() {
+  if (!form.host_ip || !form.ssh_username || !form.ssh_password) return;
+  detecting.value = true;
+  detectMsg.value = "";
+  try {
+    const { data } = await computeApi.detectSpecs({
+      host_ip: form.host_ip,
+      ssh_username: form.ssh_username,
+      ssh_password: form.ssh_password,
+    });
+    if (data.status === "success") {
+      form.total_cpu_cores = data.cpu_cores || 0;
+      form.total_memory_gb = data.memory_gb || 0;
+      form.total_disk_gb = data.disk_gb || 0;
+      detectMsg.value = `检测完成: ${data.cpu_cores}核 / ${data.memory_gb}GB / ${data.disk_gb}GB`;
+      if (data.gpu_count > 0) {
+        detectMsg.value += ` / ${data.gpu_count}×GPU (${data.gpu_names})`;
+      }
+    } else {
+      detectMsg.value = "检测失败: " + (data.error || "未知错误");
+    }
+  } catch (e: any) {
+    detectMsg.value = "检测请求失败";
+  } finally {
+    detecting.value = false;
+  }
 }
 
 async function submitForm() {
